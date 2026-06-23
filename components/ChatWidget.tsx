@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { ArrowUp, Expand, Shrink } from "lucide-react";
 
 type Source = {
     id: string;
@@ -18,6 +19,7 @@ type Message = {
 
 export default function ChatWidget() {
     const [isOpen, setIsOpen] = useState(false);
+    const [isExpanded, setIsExpanded] = useState(false);
     const [messages, setMessages] = useState<Message[]>([
         {
             role: "assistant",
@@ -31,15 +33,23 @@ export default function ChatWidget() {
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
     useEffect(() => {
+        const isMobile = window.matchMedia("(max-width: 640px)").matches;
+
         window.parent.postMessage(
             {
                 type: "KAJABI_CHATBOT_SIZE",
-                width: isOpen ? "430px" : "128px",
-                height: isOpen ? "640px" : "128px",
+                width: isOpen
+                    ? isMobile
+                        ? "100vw"
+                        : isExpanded
+                            ? "620px"
+                            : "430px"
+                    : "128px",
+                height: isOpen ? (isMobile ? "100vh" : "640px") : "128px",
             },
             "*"
         );
-    }, [isOpen]);
+    }, [isOpen, isExpanded]);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -100,14 +110,46 @@ export default function ChatWidget() {
     }
 
     return (
-        <div className="fixed bottom-6 right-6 z-50">
+        <div className="fixed bottom-6 right-6 z-50 max-sm:inset-0 max-sm:bottom-auto max-sm:right-auto max-sm:pointer-events-none">
             {isOpen && (
-                <div className="mb-4 flex h-[520px] w-[360px] max-w-[calc(100vw-48px)] flex-col overflow-hidden rounded-3xl border border-black/10 bg-white shadow-2xl">
-                    <div className="bg-black px-5 py-4 text-white">
-                        <p className="text-sm font-semibold">DSU Kurs-Assistent</p>
-                        <p className="text-xs text-white/70">
-                            Fragen zum Kurs & Dropshipping
-                        </p>
+                <div
+                    className={`mb-4 flex h-[520px] max-w-[calc(100vw-32px)] flex-col overflow-hidden rounded-3xl border border-black/10 bg-white shadow-2xl transition-[width] duration-200 max-sm:pointer-events-auto max-sm:h-screen max-sm:w-screen max-sm:max-w-none max-sm:rounded-none max-sm:border-0 max-sm:shadow-none ${
+                        isExpanded ? "w-[550px]" : "w-[360px]"
+                    }`}
+                >
+                    <div className="flex items-center justify-between bg-black px-5 py-4 text-white">
+                        <div>
+                            <p className="text-sm font-semibold">DSU Kurs-Assistent</p>
+                            <p className="text-xs text-white/70">
+                                Fragen zum Kurs & Dropshipping
+                            </p>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => setIsExpanded((prev) => !prev)}
+                                aria-label={
+                                    isExpanded
+                                        ? "Chat verkleinern"
+                                        : "Chat vergrößern"
+                                }
+                                className="flex h-8 w-8 items-center justify-center rounded-full text-white/70 transition hover:bg-white/10 hover:text-white max-sm:hidden"
+                            >
+                                {isExpanded ? (
+                                    <Shrink size={17} strokeWidth={2.2} />
+                                ) : (
+                                    <Expand size={17} strokeWidth={2.2} />
+                                )}
+                            </button>
+
+                            <button
+                                onClick={() => setIsOpen(false)}
+                                aria-label="Chat schließen"
+                                className="hidden h-9 w-9 items-center justify-center rounded-full text-2xl font-light text-white/80 transition hover:bg-white/10 hover:text-white max-sm:flex"
+                            >
+                                ×
+                            </button>
+                        </div>
                     </div>
 
                     <div className="flex-1 space-y-3 overflow-y-auto bg-neutral-50 p-4">
@@ -130,7 +172,9 @@ export default function ChatWidget() {
                                                 Quellen:
                                             </p>
                                             {message.sources.map((source) => (
-                                                <p key={source.id}>• {source.category}</p>
+                                                <p key={source.id}>
+                                                    • {source.category}
+                                                </p>
                                             ))}
                                         </div>
                                     )}
@@ -138,8 +182,10 @@ export default function ChatWidget() {
                         ))}
 
                         {isLoading && (
-                            <div className="mr-auto rounded-2xl bg-white px-4 py-3 text-sm text-black shadow-sm">
-                                Schreibt...
+                            <div className="mr-auto flex items-center gap-1 rounded-2xl bg-white px-4 py-3 shadow-sm">
+                                <span className="typing-dot" />
+                                <span className="typing-dot typing-dot-delay-1" />
+                                <span className="typing-dot typing-dot-delay-2" />
                             </div>
                         )}
 
@@ -147,22 +193,24 @@ export default function ChatWidget() {
                     </div>
 
                     <div className="border-t bg-white p-3">
-                        <div className="flex gap-2">
+                        <div className="flex items-center gap-2 rounded-3xl border border-black/10 bg-neutral-50 px-3 py-2 shadow-sm">
                             <input
                                 value={input}
                                 onChange={(e) => setInput(e.target.value)}
                                 onKeyDown={(e) => {
                                     if (e.key === "Enter") sendMessage();
                                 }}
-                                placeholder="Schreib deine Frage..."
-                                className="min-w-0 flex-1 rounded-full border px-4 py-3 text-sm text-black placeholder:text-neutral-400 outline-none focus:border-black"
+                                placeholder="Nachricht senden..."
+                                className="min-w-0 flex-1 bg-transparent px-2 py-2 text-sm text-black placeholder:text-neutral-400 outline-none"
                             />
+
                             <button
                                 onClick={sendMessage}
                                 disabled={isLoading || input.trim().length === 0}
-                                className="rounded-full bg-black px-5 py-3 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                                aria-label="Nachricht senden"
+                                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-black text-lg font-semibold text-white transition hover:scale-105 disabled:cursor-not-allowed disabled:bg-neutral-300 disabled:text-white"
                             >
-                                Senden
+                                <ArrowUp size={18} strokeWidth={2.5} />
                             </button>
                         </div>
                     </div>
@@ -172,7 +220,9 @@ export default function ChatWidget() {
             <button
                 onClick={() => setIsOpen((prev) => !prev)}
                 aria-label={isOpen ? "Chat schließen" : "Chat öffnen"}
-                className={`dsu-ai-button ${isOpen ? "dsu-ai-button-open" : ""}`}
+                className={`dsu-ai-button max-sm:pointer-events-auto max-sm:fixed max-sm:bottom-4 max-sm:right-4 ${
+                    isOpen ? "dsu-ai-button-open max-sm:hidden" : ""
+                }`}
             >
                 <span className="dsu-ai-orbit dsu-ai-orbit-one" />
                 <span className="dsu-ai-orbit dsu-ai-orbit-two" />
