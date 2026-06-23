@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type Source = {
     id: string;
@@ -28,16 +28,27 @@ export default function ChatWidget() {
     const [input, setInput] = useState("");
     const [isLoading, setIsLoading] = useState(false);
 
+    const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
     useEffect(() => {
         window.parent.postMessage(
             {
                 type: "KAJABI_CHATBOT_SIZE",
-                width: isOpen ? "430px" : "96px",
-                height: isOpen ? "640px" : "96px",
+                width: isOpen ? "430px" : "128px",
+                height: isOpen ? "640px" : "128px",
             },
             "*"
         );
     }, [isOpen]);
+
+    useEffect(() => {
+        if (!isOpen) return;
+
+        messagesEndRef.current?.scrollIntoView({
+            behavior: "smooth",
+            block: "end",
+        });
+    }, [messages, isLoading, isOpen]);
 
     async function sendMessage() {
         const text = input.trim();
@@ -91,10 +102,12 @@ export default function ChatWidget() {
     return (
         <div className="fixed bottom-6 right-6 z-50">
             {isOpen && (
-                <div className="mb-4 flex h-[520px] w-[360px] flex-col overflow-hidden rounded-3xl border border-black/10 bg-white shadow-2xl">
+                <div className="mb-4 flex h-[520px] w-[360px] max-w-[calc(100vw-48px)] flex-col overflow-hidden rounded-3xl border border-black/10 bg-white shadow-2xl">
                     <div className="bg-black px-5 py-4 text-white">
                         <p className="text-sm font-semibold">DSU Kurs-Assistent</p>
-                        <p className="text-xs text-white/70">Fragen zum Kurs & Dropshipping</p>
+                        <p className="text-xs text-white/70">
+                            Fragen zum Kurs & Dropshipping
+                        </p>
                     </div>
 
                     <div className="flex-1 space-y-3 overflow-y-auto bg-neutral-50 p-4">
@@ -129,6 +142,8 @@ export default function ChatWidget() {
                                 Schreibt...
                             </div>
                         )}
+
+                        <div ref={messagesEndRef} />
                     </div>
 
                     <div className="border-t bg-white p-3">
@@ -140,12 +155,12 @@ export default function ChatWidget() {
                                     if (e.key === "Enter") sendMessage();
                                 }}
                                 placeholder="Schreib deine Frage..."
-                                className="flex-1 rounded-full border px-4 py-3 text-sm text-black placeholder:text-neutral-400 outline-none focus:border-black"
+                                className="min-w-0 flex-1 rounded-full border px-4 py-3 text-sm text-black placeholder:text-neutral-400 outline-none focus:border-black"
                             />
                             <button
                                 onClick={sendMessage}
-                                disabled={isLoading}
-                                className="rounded-full bg-black px-5 py-3 text-sm font-semibold text-white disabled:opacity-50"
+                                disabled={isLoading || input.trim().length === 0}
+                                className="rounded-full bg-black px-5 py-3 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
                             >
                                 Senden
                             </button>
@@ -156,9 +171,23 @@ export default function ChatWidget() {
 
             <button
                 onClick={() => setIsOpen((prev) => !prev)}
-                className="relative flex h-16 w-16 items-center justify-center rounded-full bg-black text-2xl text-white shadow-2xl transition hover:scale-105"
+                aria-label={isOpen ? "Chat schließen" : "Chat öffnen"}
+                className={`dsu-ai-button ${isOpen ? "dsu-ai-button-open" : ""}`}
             >
-                <span className="relative">{isOpen ? "×" : "💬"}</span>
+                <span className="dsu-ai-orbit dsu-ai-orbit-one" />
+                <span className="dsu-ai-orbit dsu-ai-orbit-two" />
+
+                <span className="dsu-ai-inner">
+                    {isOpen ? (
+                        <span className="dsu-ai-close">×</span>
+                    ) : (
+                        <img
+                            src="/dsu_chatbot_logo.webp"
+                            alt="DSU AI Chatbot"
+                            className="dsu-ai-image"
+                        />
+                    )}
+                </span>
             </button>
         </div>
     );

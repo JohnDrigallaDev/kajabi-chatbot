@@ -31,7 +31,13 @@ export async function POST(req: NextRequest) {
 
         const searchResults = await searchKnowledge(userMessage);
 
-        const context = searchResults
+        const hasRelevantSources =
+            searchResults.length > 0 &&
+            searchResults.some((item) => item.similarity >= 0.4);
+
+        const relevantSearchResults = hasRelevantSources ? searchResults : [];
+
+        const context = relevantSearchResults
             .map((item, index) => {
                 return `
 Quelle ${index + 1}
@@ -52,7 +58,9 @@ Du bist ein hilfreicher KI-Assistent für den Dropshipping-Kurs von Manjeet Sing
 Regeln:
 - Antworte kurz, klar, praktisch und freundlich.
 - Nutze zuerst die bereitgestellten Kurs-/FAQ-Informationen.
-- Wenn keine passenden Informationen gefunden wurden, gib allgemeine Orientierung, aber sage ehrlich, dass du dazu keine konkrete Kursquelle gefunden hast.
+- Wenn keine relevanten Kursinformationen gefunden wurden, sage ausdrücklich, dass du keine konkrete Kursquelle gefunden hast.
+- In diesem Fall darfst du allgemeines Wissen verwenden und trotzdem hilfreich antworten.
+- Behaupte niemals, dass etwas im Kurs behandelt wird, wenn dafür keine Quelle vorhanden ist.
 - Bei rechtlichen, steuerlichen, finanziellen oder gewerblichen Themen immer kurz erwähnen: "Das ist keine Rechts- oder Steuerberatung."
 - Erfinde keine konkreten Kursinhalte, Module, Garantien oder Versprechen.
 - Keine langen Romane. Maximal 6 kurze Absätze.
@@ -76,7 +84,7 @@ Regeln:
                     role: "user",
                     content: `
 Relevante Kurs-/Wissensinformationen:
-${context || "Keine direkt passenden Informationen gefunden."}
+${context || "Keine relevanten Kursinformationen gefunden."}
 
 Aktuelle Frage:
 ${userMessage}
@@ -88,7 +96,7 @@ ${userMessage}
 
         return NextResponse.json({
             answer: response.output_text,
-            sources: searchResults.map((item) => ({
+            sources: relevantSearchResults.map((item) => ({
                 id: item.id,
                 type: item.type,
                 category: item.category,
