@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { z } from "zod";
 import { searchKnowledge } from "@/lib/vector-search";
+import { chatRateLimit } from "@/lib/rate-limit";
 
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
@@ -17,8 +18,44 @@ const ChatRequestSchema = z.object({
     history: z.array(ChatMessageSchema).max(10).optional(),
 });
 
+function getClientIp(req: NextRequest) {
+    const forwardedFor = req.headers.get("x-forwarded-for");
+    const realIp = req.headers.get("x-real-ip");
+
+    if (forwardedFor) {
+        return forwardedFor.split(",")[0].trim();
+    }
+
+    if (realIp) {
+        return realIp;
+    }
+
+    return "unknown";
+}
+
 export async function POST(req: NextRequest) {
     try {
+        const clientIp = getClientIp(req);
+
+        const rateLimitResult = await chatRateLimit.limit(clientIp);
+
+        if (!rateLimitResult.success) {
+            return NextResponse.json(
+                {
+                    error:
+                        "Du hast gerade zu viele Nachrichten gesendet. Bitte warte kurz und versuche es gleich nochmal.",
+                },
+                {
+                    status: 429,
+                    headers: {
+                        "X-RateLimit-Limit": rateLimitResult.limit.toString(),
+                        "X-RateLimit-Remaining": rateLimitResult.remaining.toString(),
+                        "X-RateLimit-Reset": rateLimitResult.reset.toString(),
+                    },
+                }
+            );
+        }
+
         const body = await req.json();
         const parsed = ChatRequestSchema.safeParse(body);
 

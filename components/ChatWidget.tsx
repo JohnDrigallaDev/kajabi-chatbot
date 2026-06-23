@@ -95,13 +95,15 @@ export default function ChatWidget() {
                     sources: data.sources ?? [],
                 },
             ]);
-        } catch {
+        } catch (error) {
             setMessages((prev) => [
                 ...prev,
                 {
                     role: "assistant",
                     content:
-                        "Sorry, da ist gerade etwas schiefgelaufen. Versuch es bitte gleich nochmal.",
+                        error instanceof Error
+                            ? error.message
+                            : "Sorry, da ist gerade etwas schiefgelaufen. Versuch es bitte gleich nochmal.",
                 },
             ]);
         } finally {
