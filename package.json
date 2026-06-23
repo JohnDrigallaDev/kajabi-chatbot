@@ -6,12 +6,22 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "import:knowledge": "tsx scripts/import-knowledge.ts",
+    "test:search": "tsx scripts/test-search.ts"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.108.2",
+    "@upstash/ratelimit": "^2.0.8",
+    "@upstash/redis": "^1.38.0",
+    "dotenv": "^17.4.2",
+    "fuse.js": "^7.4.2",
     "next": "16.2.9",
+    "openai": "^6.44.0",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "tsx": "^4.22.4",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

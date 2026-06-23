@@ -1,0 +1,26 @@
+[
+  {
+    "id": "gewerbe-001",
+    "type": "faq",
+    "category": "Gewerbe",
+    "title": "Gewerbeanmeldung für Dropshipping",
+    "content": "Für Dropshipping brauchst du in Deutschland in der Regel ein Gewerbe, wenn du dauerhaft Einnahmen erzielen möchtest. Die Anmeldung erfolgt beim zuständigen Gewerbeamt deiner Stadt oder Gemeinde.",
+    "tags": ["gewerbe", "anmeldung", "dropshipping", "deutschland"]
+  },
+  {
+    "id": "shopify-001",
+    "type": "faq",
+    "category": "Shopify",
+    "title": "Shopify für Dropshipping",
+    "content": "Shopify ist eine beliebte Plattform für Dropshipping-Shops. Du kannst damit einen eigenen Online-Shop erstellen, Produkte einpflegen, Zahlungsanbieter anbinden und deinen Shop verwalten.",
+    "tags": ["shopify", "shop", "dropshipping", "ecommerce"]
+  },
+  {
+    "id": "kurs-001",
+    "type": "course_content",
+    "category": "Kurs",
+    "title": "Dropshipping University Platinum",
+    "content": "Die Dropshipping University Platinum ist ein Kursprogramm rund um Dropshipping, Shopify, Produktrecherche, Mindset, Facebook Ads und Shop-Aufbau.",
+    "tags": ["kurs", "dsu", "platinum", "module"]
+  }
+]
