@@ -11,7 +11,7 @@ const openai = new OpenAI({
 const allowedOrigins = [
     "http://localhost:3000",
     "http://localhost:3001",
-
+    "http://localhost:30001",
     "https://kajabi-chatbot-theta.vercel.app",
 ];
 
@@ -29,25 +29,20 @@ function getClientIp(req: NextRequest) {
     const forwardedFor = req.headers.get("x-forwarded-for");
     const realIp = req.headers.get("x-real-ip");
 
-    if (forwardedFor) {
-        return forwardedFor.split(",")[0].trim();
-    }
-
-    if (realIp) {
-        return realIp;
-    }
+    if (forwardedFor) return forwardedFor.split(",")[0].trim();
+    if (realIp) return realIp;
 
     return "unknown";
 }
 
 function isAllowedOrigin(req: NextRequest) {
     const origin = req.headers.get("origin");
-
-    if (!origin) {
-        return true;
-    }
-
+    if (!origin) return true;
     return allowedOrigins.includes(origin);
+}
+
+function createStreamEvent(event: string, data: unknown) {
+    return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
 }
 
 export async function POST(req: NextRequest) {
@@ -68,14 +63,7 @@ export async function POST(req: NextRequest) {
                     error:
                         "Du hast gerade zu viele Nachrichten gesendet. Bitte warte kurz und versuche es gleich nochmal.",
                 },
-                {
-                    status: 429,
-                    headers: {
-                        "X-RateLimit-Limit": rateLimitResult.limit.toString(),
-                        "X-RateLimit-Remaining": rateLimitResult.remaining.toString(),
-                        "X-RateLimit-Reset": rateLimitResult.reset.toString(),
-                    },
-                }
+                { status: 429 }
             );
         }
 
@@ -147,7 +135,10 @@ Rechtliches:
 Antwortstil:
 - Keine langen Romane.
 - Maximal 5 kurze Absätze.
-- Wenn sinnvoll, nutze kurze Stichpunkte.
+- Formatiere Antworten mit Markdown.
+- Nutze bei Schritt-für-Schritt-Antworten Bulletpoints oder nummerierte Listen.
+- Hebe wichtige Begriffe sparsam mit **fetter Schrift** hervor.
+- Nutze keine Markdown-Überschriften, außer die Antwort ist länger.
 `;
 
         const recentHistory = history.slice(-4).map((message) => ({
@@ -155,37 +146,86 @@ Antwortstil:
             content: message.content,
         }));
 
-        const response = await openai.responses.create({
-            model: process.env.OPENAI_MODEL || "gpt-4.1-mini",
-            input: [
-                {
-                    role: "system",
-                    content: systemPrompt,
-                },
-                ...recentHistory,
-                {
-                    role: "user",
-                    content: `
+        const encoder = new TextEncoder();
+
+        const stream = new ReadableStream({
+            async start(controller) {
+                try {
+                    controller.enqueue(
+                        encoder.encode(
+                            createStreamEvent("sources", {
+                                sources: relevantSearchResults.map((item) => ({
+                                    id: item.id,
+                                    type: item.type,
+                                    category: item.category,
+                                    title: item.title,
+                                    similarity: item.similarity,
+                                })),
+                            })
+                        )
+                    );
+
+                    const openaiStream = await openai.responses.create({
+                        model: process.env.OPENAI_MODEL || "gpt-4.1-mini",
+                        input: [
+                            {
+                                role: "system",
+                                content: systemPrompt,
+                            },
+                            ...recentHistory,
+                            {
+                                role: "user",
+                                content: `
 Relevante Kurs-/Wissensinformationen:
 ${context || "Keine relevanten Kursinformationen gefunden."}
 
 Aktuelle Frage:
 ${userMessage}
 `,
-                },
-            ],
-            max_output_tokens: 350,
+                            },
+                        ],
+                        max_output_tokens: 350,
+                        stream: true,
+                    });
+
+                    for await (const event of openaiStream) {
+                        if (event.type === "response.output_text.delta") {
+                            controller.enqueue(
+                                encoder.encode(
+                                    createStreamEvent("delta", {
+                                        text: event.delta,
+                                    })
+                                )
+                            );
+                        }
+                    }
+
+                    controller.enqueue(
+                        encoder.encode(createStreamEvent("done", { ok: true }))
+                    );
+                    controller.close();
+                } catch (error) {
+                    console.error("Streaming error:", error);
+
+                    controller.enqueue(
+                        encoder.encode(
+                            createStreamEvent("error", {
+                                error:
+                                    "Der Chatbot ist gerade nicht erreichbar.",
+                            })
+                        )
+                    );
+                    controller.close();
+                }
+            },
         });
 
-        return NextResponse.json({
-            answer: response.output_text,
-            sources: relevantSearchResults.map((item) => ({
-                id: item.id,
-                type: item.type,
-                category: item.category,
-                title: item.title,
-                similarity: item.similarity,
-            })),
+        return new Response(stream, {
+            headers: {
+                "Content-Type": "text/event-stream; charset=utf-8",
+                "Cache-Control": "no-cache, no-transform",
+                Connection: "keep-alive",
+            },
         });
     } catch (error) {
         console.error("Chat API error:", error);

@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ArrowUp, Expand, Shrink } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 type Source = {
     id: string;
@@ -60,12 +62,38 @@ export default function ChatWidget() {
         });
     }, [messages, isLoading, isOpen]);
 
+    function parseSseChunk(chunk: string) {
+        const events = chunk.split("\n\n").filter(Boolean);
+
+        return events.map((eventBlock) => {
+            const eventLine = eventBlock
+                .split("\n")
+                .find((line) => line.startsWith("event: "));
+            const dataLine = eventBlock
+                .split("\n")
+                .find((line) => line.startsWith("data: "));
+
+            if (!eventLine || !dataLine) return null;
+
+            return {
+                event: eventLine.replace("event: ", "").trim(),
+                data: JSON.parse(dataLine.replace("data: ", "").trim()),
+            };
+        });
+    }
+
     async function sendMessage() {
         const text = input.trim();
 
         if (!text || isLoading) return;
 
-        setMessages((prev) => [...prev, { role: "user", content: text }]);
+        const assistantMessageIndex = messages.length + 1;
+
+        setMessages((prev) => [
+            ...prev,
+            { role: "user", content: text },
+            { role: "assistant", content: "", sources: [] },
+        ]);
         setInput("");
         setIsLoading(true);
 
@@ -81,31 +109,86 @@ export default function ChatWidget() {
                 }),
             });
 
-            const data = await res.json();
-
             if (!res.ok) {
-                throw new Error(data.error || "Fehler beim Chatbot.");
+                const data = await res.json().catch(() => null);
+                throw new Error(data?.error || "Fehler beim Chatbot.");
             }
 
-            setMessages((prev) => [
-                ...prev,
-                {
-                    role: "assistant",
-                    content: data.answer,
-                    sources: data.sources ?? [],
-                },
-            ]);
+            if (!res.body) {
+                throw new Error("Keine Antwort vom Chatbot erhalten.");
+            }
+
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = "";
+
+            while (true) {
+                const { done, value } = await reader.read();
+
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+
+                const parts = buffer.split("\n\n");
+                buffer = parts.pop() ?? "";
+
+                for (const part of parts) {
+                    const parsedEvents = parseSseChunk(part + "\n\n");
+
+                    for (const parsed of parsedEvents) {
+                        if (!parsed) continue;
+
+                        if (parsed.event === "sources") {
+                            setMessages((prev) =>
+                                prev.map((message, index) =>
+                                    index === assistantMessageIndex
+                                        ? {
+                                            ...message,
+                                            sources: parsed.data.sources ?? [],
+                                        }
+                                        : message
+                                )
+                            );
+                        }
+
+                        if (parsed.event === "delta") {
+                            setMessages((prev) =>
+                                prev.map((message, index) =>
+                                    index === assistantMessageIndex
+                                        ? {
+                                            ...message,
+                                            content:
+                                                message.content +
+                                                (parsed.data.text ?? ""),
+                                        }
+                                        : message
+                                )
+                            );
+                        }
+
+                        if (parsed.event === "error") {
+                            throw new Error(
+                                parsed.data.error ||
+                                "Der Chatbot ist gerade nicht erreichbar."
+                            );
+                        }
+                    }
+                }
+            }
         } catch (error) {
-            setMessages((prev) => [
-                ...prev,
-                {
-                    role: "assistant",
-                    content:
-                        error instanceof Error
-                            ? error.message
-                            : "Sorry, da ist gerade etwas schiefgelaufen. Versuch es bitte gleich nochmal.",
-                },
-            ]);
+            setMessages((prev) =>
+                prev.map((message, index) =>
+                    index === assistantMessageIndex
+                        ? {
+                            ...message,
+                            content:
+                                error instanceof Error
+                                    ? error.message
+                                    : "Sorry, da ist gerade etwas schiefgelaufen. Versuch es bitte gleich nochmal.",
+                        }
+                        : message
+                )
+            );
         } finally {
             setIsLoading(false);
         }
@@ -164,7 +247,19 @@ export default function ChatWidget() {
                                         : "mr-auto bg-white text-black shadow-sm"
                                 }`}
                             >
-                                <p className="whitespace-pre-wrap">{message.content}</p>
+                                {message.content ? (
+                                    <div className="prose prose-sm max-w-none prose-p:my-1 prose-ul:my-2 prose-ol:my-2 prose-li:my-0">
+                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                            {message.content}
+                                        </ReactMarkdown>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center gap-1">
+                                        <span className="typing-dot" />
+                                        <span className="typing-dot typing-dot-delay-1" />
+                                        <span className="typing-dot typing-dot-delay-2" />
+                                    </div>
+                                )}
 
                                 {message.role === "assistant" &&
                                     message.sources &&
@@ -182,14 +277,6 @@ export default function ChatWidget() {
                                     )}
                             </div>
                         ))}
-
-                        {isLoading && (
-                            <div className="mr-auto flex items-center gap-1 rounded-2xl bg-white px-4 py-3 shadow-sm">
-                                <span className="typing-dot" />
-                                <span className="typing-dot typing-dot-delay-1" />
-                                <span className="typing-dot typing-dot-delay-2" />
-                            </div>
-                        )}
 
                         <div ref={messagesEndRef} />
                     </div>
