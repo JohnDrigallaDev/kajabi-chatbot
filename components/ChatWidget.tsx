@@ -1,7 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowUp, BookOpen, ChevronDown, ChevronRight, Expand, Shrink } from "lucide-react";
+import {
+    ArrowUp,
+    BookOpen,
+    ChevronDown,
+    ChevronRight,
+    Expand,
+    RotateCcw,
+    Shrink,
+} from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -21,26 +29,72 @@ type Message = {
     sources?: Source[];
 };
 
+const STORAGE_KEY = "dsu-ai-chat-history";
+const MAX_STORED_MESSAGES = 30;
+
 const INITIAL_MESSAGE = `👋 Willkommen bei der **Dropshipping University Platinum**.
 
 Ich bin **DSU AI** und helfe dir bei Fragen rund um Shopify, Produktrecherche, Werbung, Gewerbe, Steuern allgemein und Kursinhalte.
 
 Frag mich einfach los.`;
 
+const INITIAL_MESSAGES: Message[] = [
+    {
+        role: "assistant",
+        content: INITIAL_MESSAGE,
+    },
+];
+
+function loadStoredMessages(): Message[] {
+    if (typeof window === "undefined") return INITIAL_MESSAGES;
+
+    try {
+        const raw = window.localStorage.getItem(STORAGE_KEY);
+        if (!raw) return INITIAL_MESSAGES;
+
+        const parsed = JSON.parse(raw) as Message[];
+
+        if (!Array.isArray(parsed) || parsed.length === 0) {
+            return INITIAL_MESSAGES;
+        }
+
+        return parsed;
+    } catch {
+        return INITIAL_MESSAGES;
+    }
+}
+
+function saveStoredMessages(messages: Message[]) {
+    if (typeof window === "undefined") return;
+
+    const cleanMessages = messages
+        .filter((message) => message.content.trim().length > 0)
+        .slice(-MAX_STORED_MESSAGES);
+
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(cleanMessages));
+}
+
 export default function ChatWidget() {
     const [isOpen, setIsOpen] = useState(false);
     const [isExpanded, setIsExpanded] = useState(false);
     const [openSourceIds, setOpenSourceIds] = useState<string[]>([]);
-    const [messages, setMessages] = useState<Message[]>([
-        {
-            role: "assistant",
-            content: INITIAL_MESSAGE,
-        },
-    ]);
+    const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
     const [input, setInput] = useState("");
     const [isLoading, setIsLoading] = useState(false);
+    const [isStorageReady, setIsStorageReady] = useState(false);
 
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
+    useEffect(() => {
+        setMessages(loadStoredMessages());
+        setIsStorageReady(true);
+    }, []);
+
+    useEffect(() => {
+        if (!isStorageReady || isLoading) return;
+
+        saveStoredMessages(messages);
+    }, [messages, isLoading, isStorageReady]);
 
     useEffect(() => {
         const isMobile = window.matchMedia("(max-width: 640px)").matches;
@@ -69,6 +123,12 @@ export default function ChatWidget() {
             block: "end",
         });
     }, [messages, isLoading, isOpen]);
+
+    function resetConversation() {
+        setMessages(INITIAL_MESSAGES);
+        setOpenSourceIds([]);
+        window.localStorage.removeItem(STORAGE_KEY);
+    }
 
     function toggleSource(sourceId: string) {
         setOpenSourceIds((prev) =>
@@ -235,6 +295,14 @@ export default function ChatWidget() {
 
                         <div className="flex items-center gap-2">
                             <button
+                                onClick={resetConversation}
+                                aria-label="Chat zurücksetzen"
+                                className="flex h-8 w-8 items-center justify-center rounded-full text-white/70 transition hover:bg-white/10 hover:text-white"
+                            >
+                                <RotateCcw size={16} strokeWidth={2.2} />
+                            </button>
+
+                            <button
                                 onClick={() => setIsExpanded((prev) => !prev)}
                                 aria-label={
                                     isExpanded
@@ -261,113 +329,143 @@ export default function ChatWidget() {
                     </div>
 
                     <div className="flex-1 space-y-3 overflow-y-auto bg-neutral-50 p-4">
-                        {messages.map((message, index) => (
-                            <div
-                                key={index}
-                                className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
-                                    message.role === "user"
-                                        ? "ml-auto bg-black text-white"
-                                        : "mr-auto bg-white text-black shadow-sm"
-                                }`}
-                            >
-                                {message.content ? (
-                                    <div className="prose prose-sm max-w-none prose-p:my-1 prose-ul:my-2 prose-ol:my-2 prose-li:my-0">
-                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                            {message.content}
-                                        </ReactMarkdown>
-                                    </div>
-                                ) : (
-                                    <div className="flex items-center gap-1">
-                                        <span className="typing-dot" />
-                                        <span className="typing-dot typing-dot-delay-1" />
-                                        <span className="typing-dot typing-dot-delay-2" />
-                                    </div>
-                                )}
+                        {messages.map((message, index) => {
+                            const isLatestStreamingMessage =
+                                isLoading &&
+                                index === messages.length - 1 &&
+                                message.role === "assistant";
 
-                                {message.role === "assistant" &&
-                                    message.content.trim().length > 0 &&
-                                    !isLoading &&
-                                    message.sources &&
-                                    message.sources.length > 0 && (
-                                        <div className="mt-3 rounded-2xl border border-black/10 bg-neutral-50 p-3 text-xs text-neutral-600">
-                                            <p className="mb-2 font-semibold text-neutral-800">
-                                                <span className="inline-flex items-center gap-1.5">
-                                                    <BookOpen size={14} strokeWidth={2.2} />
-                                                    Verwendete Quellen ({message.sources.length})
-                                                </span>
-                                            </p>
-
-                                            <div className="space-y-2">
-                                                {message.sources.map((source) => {
-                                                    const isSourceOpen =
-                                                        openSourceIds.includes(source.id);
-
-                                                    return (
-                                                        <div
-                                                            key={source.id}
-                                                            className="rounded-xl border border-black/5 bg-white"
-                                                        >
-                                                            <button
-                                                                type="button"
-                                                                onClick={() =>
-                                                                    toggleSource(source.id)
-                                                                }
-                                                                className="flex w-full items-start gap-2 px-3 py-2 text-left transition hover:bg-neutral-50"
-                                                            >
-                                                                <span className="mt-0.5 text-neutral-400">
-                                                                    {isSourceOpen ? (
-                                                                        <ChevronDown size={14} />
-                                                                    ) : (
-                                                                        <ChevronRight size={14} />
-                                                                    )}
-                                                                </span>
-
-                                                                <span className="min-w-0">
-                                                                    <span className="block font-semibold text-neutral-800">
-                                                                        {source.title}
-                                                                    </span>
-                                                                    <span className="block text-[11px] text-neutral-500">
-                                                                        {source.category} ·{" "}
-                                                                        {getSourceTypeLabel(
-                                                                            source.type
-                                                                        )}
-                                                                    </span>
-                                                                </span>
-                                                            </button>
-
-                                                            {isSourceOpen && (
-                                                                <div className="border-t border-black/5 px-3 py-2 text-[11px] leading-relaxed text-neutral-600">
-                                                                    {source.content && (
-                                                                        <p className="mb-2">
-                                                                            {source.content}
-                                                                        </p>
-                                                                    )}
-
-                                                                    {source.tags &&
-                                                                        source.tags.length > 0 && (
-                                                                            <div className="flex flex-wrap gap-1">
-                                                                                {source.tags.map(
-                                                                                    (tag) => (
-                                                                                        <span
-                                                                                            key={`${source.id}-${tag}`}
-                                                                                            className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] text-neutral-500"
-                                                                                        >
-                                                                                            {tag}
-                                                                                        </span>
-                                                                                    )
-                                                                                )}
-                                                                            </div>
-                                                                        )}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
+                            return (
+                                <div
+                                    key={index}
+                                    className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+                                        message.role === "user"
+                                            ? "ml-auto bg-black text-white"
+                                            : "mr-auto bg-white text-black shadow-sm"
+                                    }`}
+                                >
+                                    {message.content ? (
+                                        <div className="prose prose-sm max-w-none prose-p:my-1 prose-ul:my-2 prose-ol:my-2 prose-li:my-0">
+                                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                                {message.content}
+                                            </ReactMarkdown>
+                                        </div>
+                                    ) : (
+                                        <div className="flex items-center gap-1">
+                                            <span className="typing-dot" />
+                                            <span className="typing-dot typing-dot-delay-1" />
+                                            <span className="typing-dot typing-dot-delay-2" />
                                         </div>
                                     )}
-                            </div>
-                        ))}
+
+                                    {message.role === "assistant" &&
+                                        message.content.trim().length > 0 &&
+                                        !isLatestStreamingMessage &&
+                                        message.sources &&
+                                        message.sources.length > 0 && (
+                                            <div className="mt-3 rounded-2xl border border-black/10 bg-neutral-50 p-3 text-xs text-neutral-600">
+                                                <p className="mb-2 font-semibold text-neutral-800">
+                                                    <span className="inline-flex items-center gap-1.5">
+                                                        <BookOpen
+                                                            size={14}
+                                                            strokeWidth={2.2}
+                                                        />
+                                                        Verwendete Quellen (
+                                                        {message.sources.length})
+                                                    </span>
+                                                </p>
+
+                                                <div className="space-y-2">
+                                                    {message.sources.map((source) => {
+                                                        const isSourceOpen =
+                                                            openSourceIds.includes(
+                                                                source.id
+                                                            );
+
+                                                        return (
+                                                            <div
+                                                                key={source.id}
+                                                                className="rounded-xl border border-black/5 bg-white"
+                                                            >
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() =>
+                                                                        toggleSource(
+                                                                            source.id
+                                                                        )
+                                                                    }
+                                                                    className="flex w-full items-start gap-2 px-3 py-2 text-left transition hover:bg-neutral-50"
+                                                                >
+                                                                    <span className="mt-0.5 text-neutral-400">
+                                                                        {isSourceOpen ? (
+                                                                            <ChevronDown
+                                                                                size={14}
+                                                                            />
+                                                                        ) : (
+                                                                            <ChevronRight
+                                                                                size={14}
+                                                                            />
+                                                                        )}
+                                                                    </span>
+
+                                                                    <span className="min-w-0">
+                                                                        <span className="block font-semibold text-neutral-800">
+                                                                            {source.title}
+                                                                        </span>
+                                                                        <span className="block text-[11px] text-neutral-500">
+                                                                            {
+                                                                                source.category
+                                                                            }{" "}
+                                                                            ·{" "}
+                                                                            {getSourceTypeLabel(
+                                                                                source.type
+                                                                            )}
+                                                                        </span>
+                                                                    </span>
+                                                                </button>
+
+                                                                {isSourceOpen && (
+                                                                    <div className="border-t border-black/5 px-3 py-2 text-[11px] leading-relaxed text-neutral-600">
+                                                                        {source.content && (
+                                                                            <p className="mb-2">
+                                                                                {
+                                                                                    source.content
+                                                                                }
+                                                                            </p>
+                                                                        )}
+
+                                                                        {source.tags &&
+                                                                            source.tags
+                                                                                .length >
+                                                                            0 && (
+                                                                                <div className="flex flex-wrap gap-1">
+                                                                                    {source.tags.map(
+                                                                                        (
+                                                                                            tag
+                                                                                        ) => (
+                                                                                            <span
+                                                                                                key={`${source.id}-${tag}`}
+                                                                                                className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] text-neutral-500"
+                                                                                            >
+                                                                                                {
+                                                                                                    tag
+                                                                                                }
+                                                                                            </span>
+                                                                                        )
+                                                                                    )}
+                                                                                </div>
+                                                                            )}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        )}
+                                </div>
+                            );
+                        })}
 
                         <div ref={messagesEndRef} />
                     </div>
