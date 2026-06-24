@@ -4,7 +4,7 @@
 
     const iframe = document.createElement("iframe");
 
-    iframe.src = "http://localhost:3001/embed";
+    iframe.src = "https://kajabi-chatbot-theta.vercel.app/embed";
     iframe.title = "Kajabi Chatbot";
     iframe.style.position = "fixed";
     iframe.style.right = "20px";
