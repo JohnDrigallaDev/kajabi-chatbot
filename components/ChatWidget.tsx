@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowUp, Expand, Shrink } from "lucide-react";
+import { ArrowUp, BookOpen, ChevronDown, ChevronRight, Expand, Shrink } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -10,6 +10,8 @@ type Source = {
     type: string;
     category: string;
     title: string;
+    content?: string;
+    tags?: string[];
     similarity: number;
 };
 
@@ -19,14 +21,20 @@ type Message = {
     sources?: Source[];
 };
 
+const INITIAL_MESSAGE = `👋 Willkommen bei der **Dropshipping University Platinum**.
+
+Ich bin **DSU AI** und helfe dir bei Fragen rund um Shopify, Produktrecherche, Werbung, Gewerbe, Steuern allgemein und Kursinhalte.
+
+Frag mich einfach los.`;
+
 export default function ChatWidget() {
     const [isOpen, setIsOpen] = useState(false);
     const [isExpanded, setIsExpanded] = useState(false);
+    const [openSourceIds, setOpenSourceIds] = useState<string[]>([]);
     const [messages, setMessages] = useState<Message[]>([
         {
             role: "assistant",
-            content:
-                "Hey 👋 Ich bin dein Kurs-Assistent. Stell mir gerne deine Frage zu Dropshipping, Shopify, Gewerbe oder zum Kurs.",
+            content: INITIAL_MESSAGE,
         },
     ]);
     const [input, setInput] = useState("");
@@ -61,6 +69,21 @@ export default function ChatWidget() {
             block: "end",
         });
     }, [messages, isLoading, isOpen]);
+
+    function toggleSource(sourceId: string) {
+        setOpenSourceIds((prev) =>
+            prev.includes(sourceId)
+                ? prev.filter((id) => id !== sourceId)
+                : [...prev, sourceId]
+        );
+    }
+
+    function getSourceTypeLabel(type: string) {
+        if (type === "faq") return "FAQ";
+        if (type === "course_content") return "Kursinhalt";
+        if (type === "general_info") return "Info";
+        return type;
+    }
 
     function parseSseChunk(chunk: string) {
         const events = chunk.split("\n\n").filter(Boolean);
@@ -204,9 +227,9 @@ export default function ChatWidget() {
                 >
                     <div className="flex items-center justify-between bg-black px-5 py-4 text-white">
                         <div>
-                            <p className="text-sm font-semibold">DSU Kurs-Assistent</p>
+                            <p className="text-sm font-semibold">DSU AI</p>
                             <p className="text-xs text-white/70">
-                                Fragen zum Kurs & Dropshipping
+                                Dropshipping University Assistant
                             </p>
                         </div>
 
@@ -262,17 +285,85 @@ export default function ChatWidget() {
                                 )}
 
                                 {message.role === "assistant" &&
+                                    message.content.trim().length > 0 &&
+                                    !isLoading &&
                                     message.sources &&
                                     message.sources.length > 0 && (
-                                        <div className="mt-3 border-t border-black/10 pt-2 text-xs text-neutral-500">
-                                            <p className="mb-1 font-semibold text-neutral-600">
-                                                Quellen:
+                                        <div className="mt-3 rounded-2xl border border-black/10 bg-neutral-50 p-3 text-xs text-neutral-600">
+                                            <p className="mb-2 font-semibold text-neutral-800">
+                                                <span className="inline-flex items-center gap-1.5">
+                                                    <BookOpen size={14} strokeWidth={2.2} />
+                                                    Verwendete Quellen ({message.sources.length})
+                                                </span>
                                             </p>
-                                            {message.sources.map((source) => (
-                                                <p key={source.id}>
-                                                    • {source.category}
-                                                </p>
-                                            ))}
+
+                                            <div className="space-y-2">
+                                                {message.sources.map((source) => {
+                                                    const isSourceOpen =
+                                                        openSourceIds.includes(source.id);
+
+                                                    return (
+                                                        <div
+                                                            key={source.id}
+                                                            className="rounded-xl border border-black/5 bg-white"
+                                                        >
+                                                            <button
+                                                                type="button"
+                                                                onClick={() =>
+                                                                    toggleSource(source.id)
+                                                                }
+                                                                className="flex w-full items-start gap-2 px-3 py-2 text-left transition hover:bg-neutral-50"
+                                                            >
+                                                                <span className="mt-0.5 text-neutral-400">
+                                                                    {isSourceOpen ? (
+                                                                        <ChevronDown size={14} />
+                                                                    ) : (
+                                                                        <ChevronRight size={14} />
+                                                                    )}
+                                                                </span>
+
+                                                                <span className="min-w-0">
+                                                                    <span className="block font-semibold text-neutral-800">
+                                                                        {source.title}
+                                                                    </span>
+                                                                    <span className="block text-[11px] text-neutral-500">
+                                                                        {source.category} ·{" "}
+                                                                        {getSourceTypeLabel(
+                                                                            source.type
+                                                                        )}
+                                                                    </span>
+                                                                </span>
+                                                            </button>
+
+                                                            {isSourceOpen && (
+                                                                <div className="border-t border-black/5 px-3 py-2 text-[11px] leading-relaxed text-neutral-600">
+                                                                    {source.content && (
+                                                                        <p className="mb-2">
+                                                                            {source.content}
+                                                                        </p>
+                                                                    )}
+
+                                                                    {source.tags &&
+                                                                        source.tags.length > 0 && (
+                                                                            <div className="flex flex-wrap gap-1">
+                                                                                {source.tags.map(
+                                                                                    (tag) => (
+                                                                                        <span
+                                                                                            key={`${source.id}-${tag}`}
+                                                                                            className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] text-neutral-500"
+                                                                                        >
+                                                                                            {tag}
+                                                                                        </span>
+                                                                                    )
+                                                                                )}
+                                                                            </div>
+                                                                        )}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
                                         </div>
                                     )}
                             </div>

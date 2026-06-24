@@ -159,6 +159,8 @@ Antwortstil:
                                     type: item.type,
                                     category: item.category,
                                     title: item.title,
+                                    content: item.content,
+                                    tags: item.tags,
                                     similarity: item.similarity,
                                 })),
                             })
