@@ -11,7 +11,8 @@ const openai = new OpenAI({
 const allowedOrigins = [
     "http://localhost:3000",
     "http://localhost:3001",
-    "http://localhost:30001",
+
+    "https://kajabi-chatbot-theta.vercel.app",
 ];
 
 const ChatMessageSchema = z.object({
