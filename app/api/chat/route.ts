@@ -97,6 +97,8 @@ Quelle ${index + 1}
 ID: ${item.id}
 Typ: ${item.type}
 Kategorie: ${item.category}
+Modul: ${item.moduleNumber ? `Modul ${item.moduleNumber}` : "-"}${item.module ? ` · ${item.module}` : ""}
+Lektion: ${item.lesson || "-"}
 Titel: ${item.title}
 Inhalt: ${item.content}
 Tags: ${item.tags.join(", ")}
@@ -158,9 +160,10 @@ Antwortstil:
                                     id: item.id,
                                     type: item.type,
                                     category: item.category,
+                                    module: item.module,
+                                    moduleNumber: item.moduleNumber,
+                                    lesson: item.lesson,
                                     title: item.title,
-                                    content: item.content,
-                                    tags: item.tags,
                                     similarity: item.similarity,
                                 })),
                             })

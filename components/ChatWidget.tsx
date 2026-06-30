@@ -4,8 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import {
     ArrowUp,
     BookOpen,
-    ChevronDown,
-    ChevronRight,
     Expand,
     RotateCcw,
     Shrink,
@@ -17,10 +15,17 @@ type Source = {
     id: string;
     type: string;
     category: string;
+    module?: string;
+    moduleNumber?: number;
+    lesson?: string;
     title: string;
-    content?: string;
-    tags?: string[];
     similarity: number;
+};
+
+type SourceDisplay = {
+    hasModule: boolean;
+    moduleLabel: string;
+    detailLabel?: string;
 };
 
 type Message = {
@@ -77,7 +82,6 @@ function saveStoredMessages(messages: Message[]) {
 export default function ChatWidget() {
     const [isOpen, setIsOpen] = useState(false);
     const [isExpanded, setIsExpanded] = useState(false);
-    const [openSourceIds, setOpenSourceIds] = useState<string[]>([]);
     const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
     const [input, setInput] = useState("");
     const [isLoading, setIsLoading] = useState(false);
@@ -126,23 +130,22 @@ export default function ChatWidget() {
 
     function resetConversation() {
         setMessages(INITIAL_MESSAGES);
-        setOpenSourceIds([]);
         window.localStorage.removeItem(STORAGE_KEY);
     }
 
-    function toggleSource(sourceId: string) {
-        setOpenSourceIds((prev) =>
-            prev.includes(sourceId)
-                ? prev.filter((id) => id !== sourceId)
-                : [...prev, sourceId]
-        );
-    }
+    function getSourceDisplay(source: Source): SourceDisplay {
+        if (source.moduleNumber && source.module) {
+            return {
+                hasModule: true,
+                moduleLabel: `Modul ${source.moduleNumber} · ${source.module}`,
+                detailLabel: source.lesson || source.title,
+            };
+        }
 
-    function getSourceTypeLabel(type: string) {
-        if (type === "faq") return "FAQ";
-        if (type === "course_content") return "Kursinhalt";
-        if (type === "general_info") return "Info";
-        return type;
+        return {
+            hasModule: false,
+            moduleLabel: source.title,
+        };
     }
 
     function parseSseChunk(chunk: string) {
@@ -363,7 +366,7 @@ export default function ChatWidget() {
                                         !isLatestStreamingMessage &&
                                         message.sources &&
                                         message.sources.length > 0 && (
-                                            <div className="mt-3 rounded-2xl border border-black/10 bg-neutral-50 p-3 text-xs text-neutral-600">
+                                            <div className="mt-3 rounded-xl border border-black/10 bg-neutral-50 p-3 text-xs text-neutral-600">
                                                 <p className="mb-2 font-semibold text-neutral-800">
                                                     <span className="inline-flex items-center gap-1.5">
                                                         <BookOpen
@@ -377,85 +380,34 @@ export default function ChatWidget() {
 
                                                 <div className="space-y-2">
                                                     {message.sources.map((source) => {
-                                                        const isSourceOpen =
-                                                            openSourceIds.includes(
-                                                                source.id
-                                                            );
+                                                        const sourceDisplay =
+                                                            getSourceDisplay(source);
 
                                                         return (
                                                             <div
                                                                 key={source.id}
-                                                                className="rounded-xl border border-black/5 bg-white"
+                                                                className="rounded-lg border border-black/5 bg-white px-3 py-2"
                                                             >
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() =>
-                                                                        toggleSource(
-                                                                            source.id
-                                                                        )
-                                                                    }
-                                                                    className="flex w-full items-start gap-2 px-3 py-2 text-left transition hover:bg-neutral-50"
-                                                                >
-                                                                    <span className="mt-0.5 text-neutral-400">
-                                                                        {isSourceOpen ? (
-                                                                            <ChevronDown
-                                                                                size={14}
-                                                                            />
-                                                                        ) : (
-                                                                            <ChevronRight
-                                                                                size={14}
-                                                                            />
-                                                                        )}
+                                                                <p className="flex items-start gap-1.5 font-semibold text-neutral-800">
+                                                                    {sourceDisplay.hasModule && (
+                                                                        <BookOpen
+                                                                            size={13}
+                                                                            strokeWidth={2.2}
+                                                                            className="mt-0.5 shrink-0 text-neutral-500"
+                                                                        />
+                                                                    )}
+                                                                    <span>
+                                                                        {
+                                                                            sourceDisplay.moduleLabel
+                                                                        }
                                                                     </span>
-
-                                                                    <span className="min-w-0">
-                                                                        <span className="block font-semibold text-neutral-800">
-                                                                            {source.title}
-                                                                        </span>
-                                                                        <span className="block text-[11px] text-neutral-500">
-                                                                            {
-                                                                                source.category
-                                                                            }{" "}
-                                                                            ·{" "}
-                                                                            {getSourceTypeLabel(
-                                                                                source.type
-                                                                            )}
-                                                                        </span>
-                                                                    </span>
-                                                                </button>
-
-                                                                {isSourceOpen && (
-                                                                    <div className="border-t border-black/5 px-3 py-2 text-[11px] leading-relaxed text-neutral-600">
-                                                                        {source.content && (
-                                                                            <p className="mb-2">
-                                                                                {
-                                                                                    source.content
-                                                                                }
-                                                                            </p>
-                                                                        )}
-
-                                                                        {source.tags &&
-                                                                            source.tags
-                                                                                .length >
-                                                                            0 && (
-                                                                                <div className="flex flex-wrap gap-1">
-                                                                                    {source.tags.map(
-                                                                                        (
-                                                                                            tag
-                                                                                        ) => (
-                                                                                            <span
-                                                                                                key={`${source.id}-${tag}`}
-                                                                                                className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] text-neutral-500"
-                                                                                            >
-                                                                                                {
-                                                                                                    tag
-                                                                                                }
-                                                                                            </span>
-                                                                                        )
-                                                                                    )}
-                                                                                </div>
-                                                                            )}
-                                                                    </div>
+                                                                </p>
+                                                                {sourceDisplay.detailLabel && (
+                                                                    <p className="mt-0.5 pl-[19px] text-[11px] text-neutral-500">
+                                                                        {
+                                                                            sourceDisplay.detailLabel
+                                                                        }
+                                                                    </p>
                                                                 )}
                                                             </div>
                                                         );

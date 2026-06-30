@@ -10,6 +10,9 @@ type KnowledgeItem = {
     id: string;
     type: "faq" | "course_content" | "general_info";
     category: string;
+    module?: string;
+    moduleNumber?: number;
+    lesson?: string;
     title: string;
     content: string;
     tags: string[];
@@ -59,6 +62,9 @@ async function main() {
             id: item.id,
             type: item.type,
             category: item.category,
+            module: item.module,
+            moduleNumber: item.moduleNumber,
+            lesson: item.lesson,
             title: item.title,
             content: item.content,
             tags: item.tags,
